@@ -9,7 +9,7 @@ The design enables secure remote access from external locations (e.g. Malaysia) 
 
 ## Architecture Diagram
 
-![Architecture](docs/architecture.png)
+![Architecture](High level Architecture.png)
 
 ---
 
