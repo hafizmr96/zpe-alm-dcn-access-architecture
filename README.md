@@ -9,7 +9,7 @@ The design enables secure remote access from external locations (e.g. Malaysia) 
 
 ## Architecture Diagram
 
-![Architecture](High level Architecture.png)
+[![Architecture](High level Architecture.png)](https://github.com/hafizmr96/zpe-alm-dcn-access-architecture/blob/bafcf341c5904aee5ae5c5fe2fe7a02e5b5829b8/High%20Level%20Architecture.png)
 
 ---
 
