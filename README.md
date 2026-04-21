@@ -47,3 +47,42 @@ The design enables secure remote access from external locations (e.g. Malaysia) 
 ---
 
 ## Example NAT Configuration (ZPE)
+PREROUTING DNAT:
+192.168.70.7:8443 → 10.10.10.55:443
+
+POSTROUTING MASQUERADE:
+10.10.10.0/24 → eth0
+
+
+---
+
+## Security Considerations
+
+- Avoid exposing ALM directly to public internet
+- Prefer VPN or controlled NAT access
+- Implement ACLs on firewall
+- Segment DCN network from corporate LAN
+
+---
+
+## Disclaimer
+
+- This architecture diagram was generated using AI tools.
+- The design and technical flow are fully conceptualized and engineered by the author.
+- All IP addresses shown are **for illustration purposes only** and do NOT reflect any real production environment.
+
+---
+
+## Author
+
+Hafiz – Network / DevOps Engineer  
+Focus: Telecom Infrastructure, DCN, Automation, AI-assisted operations
+
+---
+
+## Purpose
+
+This repository is intended for:
+- Portfolio demonstration
+- Architecture reference
+- Knowledge sharing
