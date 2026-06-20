@@ -1,88 +1,168 @@
-# ZPE to ALM DCN Access Architecture
+# ZPE Nodegrid — Out-of-Band DCN Access Architecture
 
-## Overview
-This project demonstrates a real-world deployment scenario where a ZPE (Nodegrid) device is used as an out-of-band access gateway to reach an ALM (Adtran) system for centralized fiber monitoring.
+[![IPsec](https://img.shields.io/badge/VPN-IPsec_AES256-003E7E?logo=checkpoint)](https://www.checkpoint.com/)
+[![ZPE](https://img.shields.io/badge/OOB-ZPE_Nodegrid-00A86B)](https://www.zpesystems.com/)
+[![OS](https://img.shields.io/badge/OS-Linux_CentOS-262577?logo=linux)](https://www.centos.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-The design enables secure remote access from external locations (e.g. Malaysia) into HQ infrastructure via IPsec VPN, traversing multiple security layers before reaching the ALM GUI.
-
----
-
-## Architecture Diagram
-
-[![Architecture](High level Architecture.png)](https://github.com/hafizmr96/zpe-alm-dcn-access-architecture/blob/bafcf341c5904aee5ae5c5fe2fe7a02e5b5829b8/High%20Level%20Architecture.png)
+A production-grade **out-of-band access architecture** that enables secure remote
+access to an ALM (Adtran) fiber monitoring system inside a DCN network — through
+multi-layer firewalls, IPsec VPN, and ZPE Nodegrid as the boundary gateway.
 
 ---
 
-## Key Components
+## Problem
 
-- Remote Engineer (Malaysia)
-- IPsec VPN Tunnel (AES-256)
-- Check Point Security Gateway (Level 9)
-- Check Point Security Gateway (Level 7)
-- ZPE Nodegrid (Out-of-Band Management)
-- ALM (Adtran) – Fiber Monitoring System
+Field engineers and NOC teams in a different country (Malaysia) need to access
+the ALM fiber monitoring GUI at HQ. The ALM lives inside a closed **DCN
+(Datacenter Network)** segment with no direct internet exposure. Direct
+connectivity is blocked by:
 
----
-
-## Access Flow
-
-1. Remote user connects via IPsec VPN to HQ
-2. Traffic enters through Level 9 Checkpoint firewall
-3. Routed internally to Level 7 network
-4. Passed through Checkpoint L7
-5. Reaches ZPE
-6. ZPE performs NAT / routing into DCN network
-7. User accesses ALM GUI
+- Multiple firewall zones (Level 9 WAN → Level 7 corporate LAN → DCN)
+- No route from corporate LAN into the DCN management plane
+- Security policy requiring all management traffic to traverse an
+  **out-of-band (OOB) management gateway**
 
 ---
 
-## Key Design Concepts
+## Solution
 
-- Separation of WAN and DCN network
-- ZPE acting as boundary gateway
-- NAT (DNAT + MASQUERADE) for GUI exposure
-- Secure layered firewall architecture
-- Out-of-band management integration
-
----
-
-## Example NAT Configuration (ZPE)
-PREROUTING DNAT:
-192.168.70.7:8443 → 10.10.10.55:443
-
-POSTROUTING MASQUERADE:
-10.10.10.0/24 → eth0
-
+Deploy a **ZPE Nodegrid** device as the OOB boundary gateway between the
+corporate LAN and the DCN network. Remote users connect via IPsec VPN through
+two Check Point firewall layers, then the ZPE performs DNAT + MASQUERADE to
+expose the ALM GUI on a controlled port.
 
 ---
 
-## Security Considerations
+## Architecture
 
-- Avoid exposing ALM directly to public internet
-- Prefer VPN or controlled NAT access
-- Implement ACLs on firewall
-- Segment DCN network from corporate LAN
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Remote Engineer (Malaysia)                                             │
+│  ┌──────────────┐                                                       │
+│  │  VPN Client  │  IPsec AES-256                                        │
+│  └──────┬───────┘                                                       │
+│         │                                                               │
+│  ┌──────▼──────────────────────────────────────────────────────────┐   │
+│  │  Check Point L9 (WAN Edge)         Zone: External → DMZ         │   │
+│  │  ─ Allow IPsec UDP 500/4500                                      │   │
+│  │  ─ Allow HTTPS to ZPE WAN IP:8443                                │   │
+│  └──────┬──────────────────────────────────────────────────────────┘   │
+│         │                                                               │
+│  ┌──────▼──────────────────────────────────────────────────────────┐   │
+│  │  Check Point L7 (Corporate LAN)    Zone: DMZ → Internal         │   │
+│  │  ─ Permit established VPN traffic                                │   │
+│  │  ─ Allow ZPE-bound sessions                                      │   │
+│  └──────┬──────────────────────────────────────────────────────────┘   │
+│         │                                                               │
+│  ┌──────▼──────────────────────────────────────────────────────────┐   │
+│  │  ZPE Nodegrid                     OOB Management Gateway        │   │
+│  │  ─ eth0: 192.168.70.7/24         (corporate LAN side)          │   │
+│  │  ─ eth1: 10.10.10.1/24           (DCN side)                    │   │
+│  │                                                                  │   │
+│  │  DNAT:  192.168.70.7:8443  →  10.10.10.55:443                   │   │
+│  │  MASQ:  10.10.10.0/24      →  eth0                              │   │
+│  └──────┬──────────────────────────────────────────────────────────┘   │
+│         │                                                               │
+│  ┌──────▼──────────────────────────────────────────────────────────┐   │
+│  │  ALM (Adtran)                     Fiber Monitoring System       │   │
+│  │  ─ MGMT IP: 10.10.10.55/24                                      │   │
+│  │  ─ GUI: HTTPS :443                                              │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Disclaimer
+## Traffic Flow
 
-- This architecture diagram was generated using AI tools.
-- The design and technical flow are fully conceptualized and engineered by the author.
-- All IP addresses shown are **for illustration purposes only** and do NOT reflect any real production environment.
+```
+Remote User                  CP L9              CP L7              ZPE               ALM
+    │                          │                  │                  │                │
+    │  IPsec VPN (AES-256)     │                  │                  │                │
+    ├─────────────────────────►│                  │                  │                │
+    │                          │  Decrypt & route │                  │                │
+    │                          ├─────────────────►│                  │                │
+    │                          │                  │  Forward to ZPE  │                │
+    │                          │                  ├─────────────────►│                │
+    │                          │                  │                  │ DNAT:8443→443  │
+    │                          │                  │                  ├───────────────►│
+    │                          │                  │                  │  HTTPS :443    │
+    │                          │                  │◄─────────────────┤                │
+    │                          │◄─────────────────┤                  │                │
+    │◄─────────────────────────┤                  │                  │                │
+    │  GUI reaches user        │                  │                  │                │
+```
+
+---
+
+## Key Design Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| OOB Gateway | ZPE Nodegrid | Purpose-built OOB appliance; Linux-based; survives core network failure |
+| VPN termination | Check Point L9 (WAN edge) | Industry-standard security gateway; IPSec termination at perimeter |
+| NAT type | DNAT + MASQUERADE (ZPE) | ALM has no default gateway; ZPE handles bidirectional translation |
+| DCN addressing | RFC 1918 /24 per site | Predictable mgmt addressing; no overlap with corporate space |
+| GUI access port | 8443 (ZPE) → 443 (ALM) | Non-standard port on corporate side to avoid conflict; DNAT rewrites to ALM native |
+
+---
+
+## Repository Structure
+
+```
+zpe-alm-dcn-access-architecture/
+├── README.md                    # This file — architecture overview
+├── ARCHITECTURE.md              # Architecture Decision Records (ADRs)
+├── docs/
+│   ├── architecture-deep-dive.md  # Detailed technical breakdown
+│   ├── MOP.md                     # Method of Procedure
+│   ├── images/                    # Architecture diagrams & screenshots
+│   │   ├── High Level Architecture.png
+│   │   ├── ALM GUI.jpeg
+│   │   ├── DNAT Configuration in ZPE.jpeg
+│   │   └── LAN Gateway configuration in ZPE.jpeg
+│   └── diagram/
+│       └── source-notes.md        # Styling source
+├── configs/
+│   ├── zpe-dnat-config.md         # DNAT + MASQUERADE config reference
+│   ├── zpe-lan-gateway-config.md  # LAN interface config reference
+│   └── checkpoint-policy.md       # Firewall policy pseudocode
+├── .gitignore
+└── LICENSE
+```
+
+---
+
+## Technologies
+
+| Layer | Technology | Role |
+|---|---|---|
+| WAN connectivity | IPsec VPN (AES-256) | Encrypted tunnel from remote to HQ |
+| Security gateway | Check Point (L9 / L7) | Multi-zone firewall, traffic inspection |
+| OOB management | ZPE Nodegrid (CentOS-based) | Boundary gateway, NAT, access control |
+| Fiber monitoring | ALM (Adtran) | Passive optical network monitoring |
+| DCN | Switched Ethernet / RFC 1918 | Isolated management plane |
+
+---
+
+## Security Posture
+
+- **Defence in depth**: 3 security zones (WAN, corporate LAN, DCN)
+- **Least privilege**: ALM accessible only via ZPE on a single port (8443)
+- **No direct internet**: DCN has no default gateway to WAN
+- **OOB isolation**: ZPE on separate management VLAN; does not transit production data
+- **Encryption in transit**: IPsec AES-256 from remote to HQ perimeter
 
 ---
 
 ## Author
 
-Hafiz – Network / DevOps Engineer  
-Focus: Telecom Infrastructure, DCN, Automation, AI-assisted operations
+**Hafiz** — Network / Platform Engineer  
+Telecom Infrastructure · DCN · Automation · AI-assisted Operations
 
 ---
 
-## Purpose
+## License
 
-This repository is intended for:
-- Portfolio demonstration
-- Architecture reference
-- Knowledge sharing
+MIT
